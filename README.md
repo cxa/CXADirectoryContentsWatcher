@@ -1,8 +1,8 @@
 # CXADirectoryContentsWatcher
 
-Needing to handle files added from iTunes File Sharing motivate me to create this project.
+To handle files added or removed from iTunes File Sharing while app running motivates me to create this project.
 
-Watch for the changes of a directory contents is easy with GCD `dispatch_source_t`, but to determine whether a file finish copying or not is very hard. I've tried `DISPATCH_VNODE_ATTRIB` mask but without lucky. So I do it the hard way, poll to check file size changing, when current size is equal to last check, I assume the copying job is done.
+Watching for the changes of a directory contents is easy with GCD `dispatch_source_t`, but to determine whether a file finish copying or not is very hard. With `DISPATCH_VNODE_ATTRIB` mask, the source will send event when file will finish, if lucky we can receive the event after finishing but not always especially there are multiple files copying. So I do it the hard way, poll to check file size changing, when current size is equal to last check, I assume the copying job is done.
 
 Any suggestion is welcome, seeking for the elegant solutions.
 

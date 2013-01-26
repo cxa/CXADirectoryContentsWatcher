@@ -10,6 +10,7 @@
 
 static char _kDirSourceToken, _kFileSourceToken;
 static void _sourceFunc(void *);
+
 typedef struct {
   char *token;
   BOOL isReplacement;
@@ -26,6 +27,7 @@ typedef struct {
 
 - (void)checkFinsihCopy;
 - (void)poll;
+- (NSUInteger)fileSize;
 
 @end
 
@@ -41,7 +43,7 @@ typedef struct {
 - (void)handleDirContentsChange;
 - (void)monitorCopyingFile:(NSURL *)fileURL isReplacement:(BOOL)isReplacement;
 - (void)finishCopyingFile:(NSURL *)fileURL;
-- (void)waitNextRunLoopToHandlerFile:(NSURL *)fileURL;
+- (void)delayHandleFile:(NSURL *)fileURL;
 - (void)confirmDeleteFile:(id)fileURL;
 
 @end
@@ -141,19 +143,20 @@ typedef struct {
   
   NSMutableSet *removedFiles = _lastFileURLs;
   [removedFiles minusSet:curFiles];
-  for (NSURL *URL in removedFiles)
-    [self waitNextRunLoopToHandlerFile:URL];
+  for (NSURL *URL in removedFiles) // When to replace a file, the system performs a deletion before copying, so we need to delay to check this is a file deletion or replacement
+    [self delayHandleFile:URL];
   
   if (![addedFiles count] &&
       ![removedFiles count]){
-    [_scheduledFiles enumerateObjectsUsingBlock:^(id obj, BOOL *stop){
-      if ([[NSFileManager defaultManager] fileExistsAtPath:[obj path]]){
-        // exists means it's a replacement file
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(confirmDeleteFile:) object:obj];
-        [self monitorCopyingFile:obj isReplacement:YES];
-        [_scheduledFiles removeObject:obj];
-      }
-    }];
+    NSSet *setForEnum = [_scheduledFiles copy];
+    for (NSURL *URL in setForEnum){
+      if (![[NSFileManager defaultManager] fileExistsAtPath:[URL path]])
+        continue;
+      // Existence means it's a replacement file
+      [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(confirmDeleteFile:) object:URL];
+      [self monitorCopyingFile:URL isReplacement:YES];
+      [_scheduledFiles removeObject:URL];
+    }
   }
   
   _lastFileURLs = curFiles;
@@ -179,7 +182,7 @@ typedef struct {
   ctx->watcher = self;
   ctx->fileURL = info.fileURL; // let info retain fileURL for us
   int fd = open([[fileURL path] fileSystemRepresentation], O_EVTONLY);
-  dispatch_source_t dsrc = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, fd, DISPATCH_VNODE_EXTEND, _watcherQueue);
+  dispatch_source_t dsrc = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, fd, DISPATCH_VNODE_ATTRIB, _watcherQueue);
   dispatch_set_context(dsrc, ctx);
   dispatch_source_set_event_handler_f(dsrc, _sourceFunc);
   dispatch_source_set_cancel_handler(dsrc, ^{
@@ -187,15 +190,14 @@ typedef struct {
     free(ctx);
   });
   
-  dispatch_resume(dsrc);
   info.source = dsrc;
+  dispatch_resume(dsrc);
   _copyingFileInfos[fileURL] = info;
 }
 
 - (void)finishCopyingFile:(NSURL *)fileURL
 {
-  // DISPATCH_VNODE_ATTRIB event send twice according to my testing, file size large than 0 should indicate finishing
-  _CXACopyingFileInfo *info = _copyingFileInfos[fileURL];
+  _CXACopyingFileInfo *info = _copyingFileInfos[fileURL];  
   _SourceContext *ctx = dispatch_get_context(info.source);
   BOOL confirmAndResponds = [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
   [self.delegate respondsToSelector:@selector(directoryWatcher:didFinishCopyItemAtURL:isReplacement:)];
@@ -210,7 +212,7 @@ typedef struct {
   [_copyingFileInfos removeObjectForKey:fileURL];
 }
 
-- (void)waitNextRunLoopToHandlerFile:(NSURL *)fileURL
+- (void)delayHandleFile:(NSURL *)fileURL
 {
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
@@ -231,7 +233,7 @@ typedef struct {
   [_scheduledFiles removeObject:fileURL];
 }
 
-// To elminate compile warning, must put this before @end
+// To elminate compile warnings, must put this before @end
 static void _sourceFunc(void *context){
   _SourceContext *ctx = (_SourceContext *)context;
   CXADirectoryContentsWatcher *self = ctx->watcher;
@@ -249,19 +251,18 @@ static void _sourceFunc(void *context){
 
 - (void)checkFinsihCopy
 {
-  NSUInteger fileSize = [self fileSize];
-  if (fileSize == self.lastFileSize){
+  if (self.lastFileSize == [self fileSize])
     [self.watcher finishCopyingFile:self.fileURL];
-  } else {
+  else
     [self poll];
-  }
 }
 
 - (void)poll
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(checkFinsihCopy) object:nil];
   self.lastFileSize = [self fileSize];
-  [self performSelector:@selector(checkFinsihCopy) withObject:nil afterDelay:1];
+  [self performSelector:@selector(checkFinsihCopy) withObject:nil afterDelay:.5];
+  // DISPATCH_VNODE_ATTRIB send event at file will finish writting, if lucky, we can receive the event after copying job done, but not always especially on multiple files copying
 }
 
 - (NSUInteger)fileSize
