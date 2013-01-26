@@ -24,6 +24,7 @@ typedef struct {
 @property (nonatomic, strong) NSURL *fileURL;
 @property (nonatomic, strong) dispatch_source_t source;
 @property (nonatomic) NSUInteger lastFileSize;
+@property (nonatomic) NSInteger possibleZeroSizeFileCheckCounter;
 
 - (void)checkFinsihCopy;
 - (void)poll;
@@ -57,7 +58,8 @@ typedef struct {
     _directoryURL = dirURL;
     _delegate = delegate;
     _lastFileURLs = [self fileURLs];
-    _watcherQueue = dispatch_get_main_queue(); // Abuse main queue to ensure we have a run loop for `-performSelector:withObject:afterDelay:`
+    // Abuse main queue to ensure we have a run loop for `-performSelector:withObject:afterDelay:`
+    _watcherQueue = dispatch_get_main_queue();
   }
 
   return self;
@@ -247,13 +249,29 @@ static void _sourceFunc(void *context){
 
 @end
 
+#define MAX_TRIES 10
+
 @implementation _CXACopyingFileInfo
 
 - (void)checkFinsihCopy
 {
-  if (self.lastFileSize == [self fileSize])
-    [self.watcher finishCopyingFile:self.fileURL];
-  else
+  NSUInteger fileSize = [self fileSize];
+  BOOL pollAgain = YES;
+  if (fileSize == 0){
+    self.possibleZeroSizeFileCheckCounter++;
+    if (self.possibleZeroSizeFileCheckCounter == MAX_TRIES){
+      // This is a zero size file
+      [self.watcher finishCopyingFile:self.fileURL];
+      pollAgain = NO;
+    }
+  } else {
+    if (fileSize == self.lastFileSize){
+      [self.watcher finishCopyingFile:self.fileURL];
+      pollAgain = NO;
+    }
+  }
+  
+  if (pollAgain)
     [self poll];
 }
 
@@ -261,8 +279,8 @@ static void _sourceFunc(void *context){
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(checkFinsihCopy) object:nil];
   self.lastFileSize = [self fileSize];
-  [self performSelector:@selector(checkFinsihCopy) withObject:nil afterDelay:.5];
   // DISPATCH_VNODE_ATTRIB send event at file will finish writting, if lucky, we can receive the event after copying job done, but not always especially on multiple files copying
+  [self performSelector:@selector(checkFinsihCopy) withObject:nil afterDelay:.5];    
 }
 
 - (NSUInteger)fileSize
