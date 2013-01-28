@@ -28,6 +28,7 @@ typedef struct {
 
 - (void)checkFinsihCopy;
 - (void)poll;
+- (void)stopPoll;
 - (NSUInteger)fileSize;
 
 @end
@@ -93,21 +94,20 @@ typedef struct {
   dispatch_source_set_event_handler_f(_dirSource, _sourceFunc);
   __weak __typeof(&*self) weakSelf = self;
   dispatch_source_set_cancel_handler(_dirSource, ^{
+    __strong __typeof(&*self) s = weakSelf;
+    if (s){
+      for (NSURL *URL in s->_scheduledFiles)
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(confirmDeleteFile:) object:URL];
+      
+      [s->_scheduledFiles removeAllObjects];
+      [s->_copyingFileInfos enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop){
+        dispatch_source_cancel([obj source]);
+      }];
+      [s->_copyingFileInfos removeAllObjects];
+    }
+    
     free(ctx);
     close(fd);
-    __typeof(&*self) s = weakSelf;
-    if (!s)
-      return;
-    
-    for (NSURL *URL in s->_scheduledFiles){
-      [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(confirmDeleteFile:) object:URL];
-    }
-    
-    for (_CXACopyingFileInfo *info in s->_copyingFileInfos){
-      dispatch_source_cancel(info.source);
-    }
-    
-    [s->_scheduledFiles removeAllObjects];
   });
   
   dispatch_resume(_dirSource);
@@ -188,6 +188,7 @@ typedef struct {
   dispatch_set_context(dsrc, ctx);
   dispatch_source_set_event_handler_f(dsrc, _sourceFunc);
   dispatch_source_set_cancel_handler(dsrc, ^{
+    [info stopPoll];
     close(fd);
     free(ctx);
   });
@@ -277,10 +278,15 @@ static void _sourceFunc(void *context){
 
 - (void)poll
 {
-  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(checkFinsihCopy) object:nil];
+  [self stopPoll];
   self.lastFileSize = [self fileSize];
   // DISPATCH_VNODE_ATTRIB send event at file will finish writting, if lucky, we can receive the event after copying job done, but not always especially on multiple files copying
   [self performSelector:@selector(checkFinsihCopy) withObject:nil afterDelay:.5];    
+}
+
+- (void)stopPoll
+{
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(checkFinsihCopy) object:nil];
 }
 
 - (NSUInteger)fileSize
