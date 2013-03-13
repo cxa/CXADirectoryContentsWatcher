@@ -22,7 +22,11 @@ typedef struct {
 
 @property (nonatomic, weak) CXADirectoryContentsWatcher *watcher;
 @property (nonatomic, strong) NSURL *fileURL;
+#if OS_OBJECT_USE_OBJC
 @property (nonatomic, strong) dispatch_source_t source;
+#else
+@property (nonatomic, assign) dispatch_source_t source;
+#endif
 @property (nonatomic) NSUInteger lastFileSize;
 @property (nonatomic) NSInteger possibleZeroSizeFileCheckCounter;
 
@@ -295,5 +299,12 @@ static void _sourceFunc(void *context){
   [self.fileURL getResourceValue:&fs forKey:NSURLFileSizeKey error:NULL];
   return [fs unsignedIntegerValue];
 }
+
+#if OS_OBJECT_USE_OBJC
+- (void)dealloc
+{
+  dispatch_release(_source);
+}
+#endif
 
 @end
