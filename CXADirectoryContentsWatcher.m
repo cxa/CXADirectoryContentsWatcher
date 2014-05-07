@@ -300,7 +300,7 @@ static void _sourceFunc(void *context){
   return [fs unsignedIntegerValue];
 }
 
-#if OS_OBJECT_USE_OBJC
+#if !defined(OS_OBJECT_USE_OBJC) || !OS_OBJECT_USE_OBJC
 - (void)dealloc
 {
   dispatch_release(_source);
