@@ -28,10 +28,12 @@ Any suggestion is welcome, seeking for the elegant solutions.
 
 ## Creator
 
-* GitHub: <https://github.com/cxa>
 * Twitter: [@_cxa](https://twitter.com/_cxa)
-* Apps available in App Store: <http://lazyapps.com>
+* Apps available on the App Store: <http://lazyapps.com>
+* PayPal: xianan.chen+paypal 📧 gmail.com, buy me a cup of coffee if you find it's useful for you.
 
 ## License
 
 CXADirectoryContentsWatcher is released under the MIT license. In short, it's royalty-free but you must you keep the copyright notice in your code or software distribution.
+
+For non attributed commercial lisence, please contact.
