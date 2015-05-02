@@ -84,7 +84,7 @@ typedef struct {
   if (fd == -1)
     return NO;
   
-  _dirSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, fd,DISPATCH_VNODE_WRITE, _watcherQueue);
+  _dirSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, fd, DISPATCH_VNODE_WRITE, _watcherQueue);
   if (!_dirSource){
     close(fd);
     return NO;
