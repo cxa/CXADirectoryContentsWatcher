@@ -18,12 +18,10 @@ FOUNDATION_EXPORT const unsigned char CXADirectoryContentsWatcherVersionString[]
 
 #import <Foundation/Foundation.h>
 
-#ifndef NS_ASSUME_NONNULL_BEGIN
+#if !__has_feature(nullability)
 #define NS_ASSUME_NONNULL_BEGIN
-#endif
-
-#ifndef NS_ASSUME_NONNULL_END
 #define NS_ASSUME_NONNULL_END
+#define __nullable
 #endif
 
 NS_ASSUME_NONNULL_BEGIN
@@ -38,7 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface CXADirectoryContentsWatcher : NSObject
 
-@property (nonatomic, weak) id <CXADirectoryContentsWatcherDelegate> delegate;
+@property (nonatomic, weak) id <CXADirectoryContentsWatcherDelegate> __nullable delegate;
 @property (nonatomic, strong, readonly) NSURL *directoryURL;
 
 - (instancetype)initWithDirectoryURL:(NSURL *)dirURL delegate:(id <CXADirectoryContentsWatcherDelegate>)delegate;
