@@ -34,10 +34,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+typedef void (^CXADirectoryContentsWatcherFinishCopyItemHandler)(NSURL *fileURL, BOOL isReplacement);
+
+typedef void (^CXADirectoryContentsWatcherRemoveItemHandler)(NSURL *fileURL);
+
 @interface CXADirectoryContentsWatcher : NSObject
 
-@property (nonatomic, weak) id <CXADirectoryContentsWatcherDelegate> __nullable delegate;
 @property (nonatomic, strong, readonly) NSURL *directoryURL;
+@property (nonatomic, weak) id <CXADirectoryContentsWatcherDelegate> __nullable delegate;
+@property (nonatomic, copy) CXADirectoryContentsWatcherFinishCopyItemHandler __nullable finishCopyHandler;
+@property (nonatomic, copy) CXADirectoryContentsWatcherRemoveItemHandler __nullable removeItemHandler;
 
 - (instancetype)initWithDirectoryURL:(NSURL *)dirURL delegate:(id <CXADirectoryContentsWatcherDelegate>)delegate;
 - (BOOL)start;

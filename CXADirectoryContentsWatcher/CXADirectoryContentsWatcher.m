@@ -208,11 +208,11 @@ typedef struct {
   _SourceContext *ctx = dispatch_get_context(info.source);
   BOOL confirmAndResponds = [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
   [self.delegate respondsToSelector:@selector(directoryWatcher:didFinishCopyItemAtURL:isReplacement:)];
-  if (confirmAndResponds){
+  if (confirmAndResponds || self.finishCopyHandler){
     BOOL isReplacement = ctx->isReplacement;
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self.delegate directoryWatcher:self didFinishCopyItemAtURL:fileURL isReplacement:isReplacement];
-    });
+    [self.delegate directoryWatcher:self didFinishCopyItemAtURL:fileURL isReplacement:isReplacement];
+    if (self.finishCopyHandler)
+      self.finishCopyHandler(fileURL, isReplacement);
   }
 
   dispatch_source_cancel(info.source);
@@ -234,8 +234,11 @@ typedef struct {
 {
   BOOL confirmAndResponds = [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
   [self.delegate respondsToSelector:@selector(directoryWatcher:didRemoveItemAtURL:)];
-  if (confirmAndResponds)
+  if (confirmAndResponds || self.removeItemHandler) {
     [self.delegate directoryWatcher:self didRemoveItemAtURL:fileURL];
+    if (self.removeItemHandler)
+      self.removeItemHandler(fileURL);
+  }
   
   [_scheduledFiles removeObject:fileURL];
 }
