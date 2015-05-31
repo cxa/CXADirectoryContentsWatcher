@@ -70,6 +70,11 @@ typedef struct {
   return self;
 }
 
+- (instancetype)initWithDirectoryURL:(NSURL *)dirURL
+{
+  return [self initWithDirectoryURL:dirURL delegate:nil];
+}
+
 - (void)dealloc
 {
   [self stop];

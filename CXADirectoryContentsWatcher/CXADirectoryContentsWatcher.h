@@ -45,7 +45,8 @@ typedef void (^CXADirectoryContentsWatcherRemoveItemHandler)(NSURL *fileURL);
 @property (nonatomic, copy) CXADirectoryContentsWatcherFinishCopyItemHandler __nullable finishCopyHandler;
 @property (nonatomic, copy) CXADirectoryContentsWatcherRemoveItemHandler __nullable removeItemHandler;
 
-- (instancetype)initWithDirectoryURL:(NSURL *)dirURL delegate:(id <CXADirectoryContentsWatcherDelegate>)delegate;
+- (instancetype)initWithDirectoryURL:(NSURL *)dirURL delegate:(id <CXADirectoryContentsWatcherDelegate> __nullable)delegate;
+- (instancetype)initWithDirectoryURL:(NSURL *)dirURL;
 - (BOOL)start;
 - (void)stop;
 
