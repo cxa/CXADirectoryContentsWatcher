@@ -63,6 +63,8 @@ typedef struct {
     _directoryURL = dirURL;
     _delegate = delegate;
     _lastFileURLs = [self fileURLs];
+    _scheduledFiles = [NSMutableSet set];
+    _copyingFileInfos = [NSMutableDictionary dictionary];
     // Abuse main queue to ensure we have a run loop for `-performSelector:withObject:afterDelay:`
     _watcherQueue = dispatch_get_main_queue();
   }
@@ -97,7 +99,7 @@ typedef struct {
   
   _SourceContext *ctx = malloc(sizeof(_SourceContext));
   ctx->token = &_kDirSourceToken;
-  ctx->watcher = self,
+  ctx->watcher = self;
   ctx->fileURL = self.directoryURL;
   dispatch_set_context(_dirSource, ctx);
   dispatch_source_set_event_handler_f(_dirSource, _sourceFunc);
@@ -176,11 +178,6 @@ typedef struct {
 - (void)monitorCopyingFile:(NSURL *)fileURL
              isReplacement:(BOOL)isReplacement
 {
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    _copyingFileInfos = [@{} mutableCopy];
-  });
-  
   if (_copyingFileInfos[fileURL])
     return;
   
@@ -211,14 +208,14 @@ typedef struct {
 {
   _CXACopyingFileInfo *info = _copyingFileInfos[fileURL];  
   _SourceContext *ctx = dispatch_get_context(info.source);
-  BOOL confirmAndResponds = [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
+  BOOL isReplacement = ctx->isReplacement;
+  BOOL confirmAndResponds = self.delegate && [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
   [self.delegate respondsToSelector:@selector(directoryWatcher:didFinishCopyItemAtURL:isReplacement:)];
-  if (confirmAndResponds || self.finishCopyHandler){
-    BOOL isReplacement = ctx->isReplacement;
+  if (confirmAndResponds)
     [self.delegate directoryWatcher:self didFinishCopyItemAtURL:fileURL isReplacement:isReplacement];
-    if (self.finishCopyHandler)
-      self.finishCopyHandler(fileURL, isReplacement);
-  }
+  
+  if (self.finishCopyHandler)
+    self.finishCopyHandler(fileURL, isReplacement);
 
   dispatch_source_cancel(info.source);
   [_copyingFileInfos removeObjectForKey:fileURL];
@@ -226,24 +223,19 @@ typedef struct {
 
 - (void)delayHandleFile:(NSURL *)fileURL
 {
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    _scheduledFiles = [NSMutableSet set];
-  });
-  
   [_scheduledFiles addObject:fileURL];
   [self performSelector:@selector(confirmDeleteFile:) withObject:fileURL afterDelay:1];
 }
 
 - (void)confirmDeleteFile:(id)fileURL
 {
-  BOOL confirmAndResponds = [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
+  BOOL confirmAndResponds = self.delegate && [self.delegate conformsToProtocol:@protocol(CXADirectoryContentsWatcherDelegate)] &&
   [self.delegate respondsToSelector:@selector(directoryWatcher:didRemoveItemAtURL:)];
-  if (confirmAndResponds || self.removeItemHandler) {
+  if (confirmAndResponds)
     [self.delegate directoryWatcher:self didRemoveItemAtURL:fileURL];
-    if (self.removeItemHandler)
-      self.removeItemHandler(fileURL);
-  }
+  
+  if (self.removeItemHandler)
+    self.removeItemHandler(fileURL);
   
   [_scheduledFiles removeObject:fileURL];
 }
